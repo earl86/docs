@@ -1,15 +1,12 @@
 apiVersion: kubedb.com/v1alpha2
 kind: Postgres
 metadata:
-  name: pg-group
+  name: pg
   namespace: demo
 spec:
-  version: "5.7.36"
+  version: "11.11"
   replicas: 3
-  topology:
-    mode: GroupReplication
-    group:
-      name: "dc002fc3-c412-4d18-b1d4-66c1fbfbbc9b"
+  standbyMode: Hot
   storageType: Durable
   storage:
     storageClassName: "standard"

@@ -18,7 +18,7 @@ section_menu_id: guides
 
 ## What is PostgresOpsRequest
 
-`PostgresOpsRequest` is a Kubernetes `Custom Resource Definitions` (CRD). It provides declarative configuration for [Postgres](https://www.postgres.com/) administrative operations like database version upgrading, horizontal scaling, vertical scaling, etc. in a Kubernetes native way.
+`PostgresOpsRequest` is a Kubernetes `Custom Resource Definitions` (CRD). It provides declarative configuration for [Postgres](https://www.postgresql.org/) administrative operations like database version upgrading, horizontal scaling, vertical scaling, etc. in a Kubernetes native way.
 
 ## PostgresOpsRequest CRD Specifications
 
@@ -179,11 +179,11 @@ Here, when you specify the resource request for `Postgres` container, the schedu
 
 `status.phase` indicates the overall phase of the operation for this `PostgresOpsRequest`. It can have the following three values:
 
-|Phase          |Meaning                                                               |
-|---------------|-----------------------------------------------------------------------|
-|Successful     | KubeDB has successfully performed the operation requested in the PostgresOpsRequest |
-|Failed         | KubeDB has failed the operation requested in the PostgresOpsRequest |
-|Denied         | KubeDB has denied the operation requested in the PostgresOpsRequest |
+| Phase      | Meaning                                                                             |
+| ---------- | ----------------------------------------------------------------------------------- |
+| Successful | KubeDB has successfully performed the operation requested in the PostgresOpsRequest |
+| Failed     | KubeDB has failed the operation requested in the PostgresOpsRequest                 |
+| Denied     | KubeDB has denied the operation requested in the PostgresOpsRequest                 |
 
 #### status.observedGeneration
 
@@ -195,18 +195,18 @@ Here, when you specify the resource request for `Postgres` container, the schedu
 
 - `types` specifies the type of the condition. PostgresOpsRequest has the following types of conditions:
 
-| Type                | Meaning                                                                  |
-| ------------------- | -------------------------------------------------------------------------|
-| `Progressing`       | Specifies that the operation is now progressing |
-| `Successful`        | Specifies such a state that the operation on the database has been successful. |
-| `HaltDatabase`     | Specifies such a state that the database is halted by the operator   |
-| `ResumeDatabase`    | Specifies such a state that the database is resumed by the operator    |
-| `Failure`           | Specifies such a state that the operation on the database has been failed.  |
-| `Scaling`           | Specifies such a state that the scaling operation on the database has stared |
-| `VerticalScaling`   | Specifies such a state that vertical scaling has performed successfully on database  |
-| `HorizontalScaling` | Specifies such a state that horizontal scaling has performed successfully on database |
-| `Upgrading`         | Specifies such a state that database upgrading operation has stared  |
-| `UpgradeVersion`    | Specifies such a state that version upgrading on the database have performed successfully  |
+| Type                | Meaning                                                                                   |
+| ------------------- | ----------------------------------------------------------------------------------------- |
+| `Progressing`       | Specifies that the operation is now progressing                                           |
+| `Successful`        | Specifies such a state that the operation on the database has been successful.            |
+| `HaltDatabase`      | Specifies such a state that the database is halted by the operator                        |
+| `ResumeDatabase`    | Specifies such a state that the database is resumed by the operator                       |
+| `Failure`           | Specifies such a state that the operation on the database has been failed.                |
+| `Scaling`           | Specifies such a state that the scaling operation on the database has stared              |
+| `VerticalScaling`   | Specifies such a state that vertical scaling has performed successfully on database       |
+| `HorizontalScaling` | Specifies such a state that horizontal scaling has performed successfully on database     |
+| `Upgrading`         | Specifies such a state that database upgrading operation has stared                       |
+| `UpgradeVersion`    | Specifies such a state that version upgrading on the database have performed successfully |
 
 - The `status` field is a string, with possible values `"True"`, `"False"`, and `"Unknown"`.
   - `status` will be `"True"` if the current transition is succeeded.
@@ -215,24 +215,24 @@ Here, when you specify the resource request for `Postgres` container, the schedu
 - The `message` field is a human-readable message indicating details about the condition.
 - The `reason` field is a unique, one-word, CamelCase reason for the condition's last transition. It has the following possible values:
 
-| Reason                                  | Meaning                                       |
-| --------------------------------------- | -----------------------------------------------|
-| `OpsRequestProgressingStarted`          | Operator has started the OpsRequest processing    |
-| `OpsRequestFailedToProgressing`         | Operator has failed to start the OpsRequest processing    |
-| `SuccessfullyHaltedDatabase`            | Database is successfully halted by the operator  |
-| `FailedToHaltDatabase`                 | Database is failed to halt by the operator    |
-| `SuccessfullyResumedDatabase`           | Database is successfully resumed to perform its usual operation  |
-| `FailedToResumedDatabase`               | Database is failed to resume                   |
-| `DatabaseVersionUpgradingStarted`       | Operator has started upgrading the database version    |
-| `SuccessfullyUpgradedDatabaseVersion`   | Operator has successfully upgraded the database version |
-| `FailedToUpgradeDatabaseVersion`        | Operator has failed to upgrade the database version   |
-| `HorizontalScalingStarted`              | Operator has started the horizontal scaling          |
-| `SuccessfullyPerformedHorizontalScaling` | Operator has successfully performed on horizontal scaling     |
-| `FailedToPerformHorizontalScaling`      | Operator has failed to perform on horizontal scaling     |
-| `VerticalScalingStarted`                | Operator has started the vertical scaling    |
-| `SuccessfullyPerformedVerticalScaling`  | Operator has successfully performed on vertical scaling   |
-| `FailedToPerformVerticalScaling`        | Operator has failed to perform on vertical scaling   |
-| `OpsRequestProcessedSuccessfully`       | Operator has completed the operation successfully requested by the OpeRequest cr  |
+| Reason                                   | Meaning                                                                          |
+| ---------------------------------------- | -------------------------------------------------------------------------------- |
+| `OpsRequestProgressingStarted`           | Operator has started the OpsRequest processing                                   |
+| `OpsRequestFailedToProgressing`          | Operator has failed to start the OpsRequest processing                           |
+| `SuccessfullyHaltedDatabase`             | Database is successfully halted by the operator                                  |
+| `FailedToHaltDatabase`                   | Database is failed to halt by the operator                                       |
+| `SuccessfullyResumedDatabase`            | Database is successfully resumed to perform its usual operation                  |
+| `FailedToResumedDatabase`                | Database is failed to resume                                                     |
+| `DatabaseVersionUpgradingStarted`        | Operator has started upgrading the database version                              |
+| `SuccessfullyUpgradedDatabaseVersion`    | Operator has successfully upgraded the database version                          |
+| `FailedToUpgradeDatabaseVersion`         | Operator has failed to upgrade the database version                              |
+| `HorizontalScalingStarted`               | Operator has started the horizontal scaling                                      |
+| `SuccessfullyPerformedHorizontalScaling` | Operator has successfully performed on horizontal scaling                        |
+| `FailedToPerformHorizontalScaling`       | Operator has failed to perform on horizontal scaling                             |
+| `VerticalScalingStarted`                 | Operator has started the vertical scaling                                        |
+| `SuccessfullyPerformedVerticalScaling`   | Operator has successfully performed on vertical scaling                          |
+| `FailedToPerformVerticalScaling`         | Operator has failed to perform on vertical scaling                               |
+| `OpsRequestProcessedSuccessfully`        | Operator has completed the operation successfully requested by the OpeRequest cr |
 
 - The `lastTransitionTime` field provides a timestamp for when the operation last transitioned from one state to another.
 - The `observedGeneration` shows the most recent condition transition generation observed by the controller.
