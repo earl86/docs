@@ -1,29 +1,19 @@
 apiVersion: kubedb.com/v1alpha2
 kind: Postgres
 metadata:
-  name: my-group-tls
+  name: pg
   namespace: demo
 spec:
-  version: "8.0.27"
+  version: "13.2"
   replicas: 3
-  topology:
-    mode: GroupReplication
-    group:
-      name: "dc002fc3-c412-4d18-b1d4-66c1fbfbbc9b"
+  standbyMode: Hot
+  sslMode: verify-full
   storageType: Durable
-  storage:
-    storageClassName: "standard"
-    accessModes:
-      - ReadWriteOnce
-    resources:
-      requests:
-        storage: 1Gi
-  requireSSL: true
   tls:
     issuerRef:
       apiGroup: cert-manager.io
+      name: postgres-ca-issuer
       kind: Issuer
-      name: postgres-issuer
     certificates:
     - alias: server
       subject:
@@ -33,4 +23,11 @@ spec:
       - localhost
       ipAddresses:
       - "127.0.0.1"
+  storage:
+    storageClassName: "standard"
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 1Gi
   terminationPolicy: WipeOut

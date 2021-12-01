@@ -16,7 +16,7 @@ section_menu_id: guides
 
 # Horizontal Scaling Overview
 
-This guide will give you an overview of how KubeDB enterprise operator scales up/down the number of members of a `Postgres` group replication.
+This guide will give you an overview of how KubeDB enterprise operator scales up/down the number of members of a `Postgres` instance.
 
 ## Before You Begin
 
@@ -26,11 +26,11 @@ This guide will give you an overview of how KubeDB enterprise operator scales up
 
 ## How Horizontal Scaling Process Works
 
-The following diagram shows how KubeDB enterprise operator used to scale up the number of members of a `Postgres` group replication. Open the image in a new tab to see the enlarged version.
+The following diagram shows how KubeDB enterprise operator used to scale up the number of members of a `Postgres` cluster. Open the image in a new tab to see the enlarged version.
 
 <figure align="center">
-  <img alt="Stash Backup Flow" src="/docs/guides/postgres/scaling/horizontal-scaling/overview/images/my-horizontal_scaling.png">
-<figcaption align="center">Fig: Horizontal scaling process of Postgres group replication</figcaption>
+  <img alt="Horizontal scaling Flow" src="/docs/guides/postgres/scaling/horizontal-scaling/overview/images/pg-horizontal-scaling.png">
+<figcaption align="center">Fig: Horizontal scaling process of Postgres</figcaption>
 </figure>
 
 The horizontal scaling process consists of the following steps:
@@ -47,10 +47,12 @@ The horizontal scaling process consists of the following steps:
 
 6. When it finds one, it halts the `Postgres` object so that the `KubeDB` community operator doesn't perform any operation on the `Postgres` during the scaling process.  
 
-7. Then the `KubeDB` enterprise operator will scale the StatefulSet replicas to reach the expected number of members for the group replication.
+7. Then `KubeDB` enterprise operator will add nodes in case of scale up or remove nodes in case of scale down.
 
-8. After successful scaling of the StatefulSet's replica, the `KubeDB` enterprise operator updates the `spec.replicas` field of `Postgres` object to reflect the updated cluster state.
+8. Then the `KubeDB` enterprise operator will scale the StatefulSet replicas to reach the expected number of replicas for the cluster.
 
-9. After successful scaling of the `Postgres` replicas, the `KubeDB` enterprise operator resumes the `Postgres` object so that the `KubeDB` community operator can resume its usual operations.
+9.  After successful scaling of the StatefulSet's replica, the `KubeDB` enterprise operator updates the `spec.replicas` field of `Postgres` object to reflect the updated cluster state.
 
-In the next doc, we are going to show a step by step guide on scaling of a Postgres group replication using Horizontal Scaling.
+10. After successful scaling of the `Postgres` replicas, the `KubeDB` enterprise operator resumes the `Postgres` object so that the `KubeDB` community operator can resume its usual operations.
+
+In the next doc, we are going to show a step by step guide on scaling of a Postgres cluster using Horizontal Scaling.

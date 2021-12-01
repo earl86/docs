@@ -1,12 +1,12 @@
 apiVersion: ops.kubedb.com/v1alpha1
 kind: PostgresOpsRequest
 metadata:
-  name: my-scale-standalone
+  name: pg-scale-vertical
   namespace: demo
 spec:
   type: VerticalScaling
   databaseRef:
-    name: my-standalone
+    name: pg
   verticalScaling:
     postgres:
       requests:

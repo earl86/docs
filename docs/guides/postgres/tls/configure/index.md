@@ -16,13 +16,13 @@ section_menu_id: guides
 
 # Configure TLS/SSL in Postgres
 
-`KubeDB` supports providing TLS/SSL encryption (via, `requireSSL` mode) for `Postgres`. This tutorial will show you how to use `KubeDB` to deploy a `Postgres` database with TLS/SSL configuration.
+`KubeDB` provides support for TLS/SSL encryption with SSLMode (`allow`, `prefer`, `require`, `verify-ca`, `verify-full`) for `Postgres`. This tutorial will show you how to use `KubeDB` to deploy a `Postgres` database with TLS/SSL configuration.
 
 ## Before You Begin
 
 - At first, you need to have a Kubernetes cluster, and the kubectl command-line tool must be configured to communicate with your cluster. If you do not already have a cluster, you can create one by using [kind](https://kind.sigs.k8s.io/docs/user/quick-start/).
 
-- Install [`cert-manger`](https://cert-manager.io/docs/installation/) v1.0.0 or later to your cluster to manage your SSL/TLS certificates.
+- Install [`cert-manger`](https://cert-manager.io/docs/installation/) v1.4.0 or later to your cluster to manage your SSL/TLS certificates.
 
 - Install `KubeDB` community and enterprise operator in your cluster following the steps [here](/docs/setup/README.md).
 
@@ -37,7 +37,7 @@ section_menu_id: guides
 
 ### Deploy Postgres database with TLS/SSL configuration
 
-As pre-requisite, at first, we are going to create an Issuer/ClusterIssuer. This Issuer/ClusterIssuer is used to create certificates. Then we are going to deploy a Postgres standalone and a group replication that will be configured with these certificates by `KubeDB` operator.
+As pre-requisite, at first, we are going to create an Issuer/ClusterIssuer. This Issuer/ClusterIssuer is used to create certificates. Then we are going to deploy a Postgres with TLS/SSL configuration.
 
 ### Create Issuer/ClusterIssuer
 
@@ -52,59 +52,51 @@ openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout ./ca.key -out ./ca.c
 - create a secret using the certificate files we have just generated,
 
 ```bash
-kubectl create secret tls my-ca \
-     --cert=ca.crt \
-     --key=ca.key \
-     --namespace=demo
-secret/my-ca created
+$ kubectl create secret tls postgres-ca --cert=ca.crt  --key=ca.key --namespace=demo 
+secret/postgres-ca created
 ```
 
-Now, we are going to create an `Issuer` using the `my-ca` secret that hols the ca-certificate we have just created. Below is the YAML of the `Issuer` cr that we are going to create,
+Now, we are going to create an `Issuer` using the `postgres-ca` secret that contains the ca-certificate we have just created. Below is the YAML of the `Issuer` cr that we are going to create,
 
 ```yaml
-apiVersion: cert-manager.io/v1beta1
+apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
-  name: postgres-issuer
-  namespace: demo
+ name: postgres-ca-issuer
+ namespace: demo
 spec:
-  ca:
-    secretName: my-ca
+ ca:
+   secretName: postgres-ca
 ```
 
 Let’s create the `Issuer` cr we have shown above,
 
 ```bash
 kubectl apply -f https://github.com/kubedb/docs/raw/{{< param "info.version" >}}/docs/guides/postgres/tls/configure/yamls/issuer.yaml
-issuer.cert-manager.io/postgres-issuer created
+issuer.cert-manager.io/postgres-ca-issuer created
 ```
 
-### Deploy Postgres Standalone with TLS/SSL configuration
+### Deploy Postgres cluster with TLS/SSL configuration
 
-Here, our issuer `postgres-issuer`  is ready to deploy a `Postgres` standalone with TLS/SSL configuration. Below is the YAML for Postgres Standalone that we are going to create,
+Here, our issuer `postgres-ca-issuer`  is ready to deploy a `Postgres` Cluster with TLS/SSL configuration. Below is the YAML for Postgres Cluster that we are going to create,
 
 ```yaml
 apiVersion: kubedb.com/v1alpha2
 kind: Postgres
 metadata:
-  name: my-standalone-tls
+  name: demo-pg
   namespace: demo
 spec:
-  version: "8.0.27"
+  version: "13.2"
+  replicas: 3
+  standbyMode: Hot
+  sslMode: verify-full
   storageType: Durable
-  storage:
-    storageClassName: "standard"
-    accessModes:
-      - ReadWriteOnce
-    resources:
-      requests:
-        storage: 1Gi   
-  requireSSL: true
   tls:
     issuerRef:
       apiGroup: cert-manager.io
+      name: postgres-ca-issuer
       kind: Issuer
-      name: postgres-issuer
     certificates:
     - alias: server
       subject:
@@ -114,25 +106,32 @@ spec:
       - localhost
       ipAddresses:
       - "127.0.0.1"
+  storage:
+    storageClassName: "standard"
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 1Gi
   terminationPolicy: WipeOut
 ```
 
 Here,
 
-- `spec.requireSSL` specifies the SSL/TLS client connection to the server is required.  
+- `spec.sslMode` specifies the SSL/TLS client connection to the server is required.  
 
-- `spec.tls.issuerRef` refers to the `postgres-issuer` issuer.
+- `spec.tls.issuerRef` refers to the `postgres-ca-issuer` issuer.
 
 - `spec.tls.certificates` gives you a lot of options to configure so that the certificate will be renewed and kept up to date. 
 You can found more details from [here](/docs/guides/postgres/concepts/postgres.md#tls)
 
-**Deploy Postgres Standalone:**
+**Deploy Postgres Cluster:**
 
 Let’s create the `Postgres` cr we have shown above,
 
 ```bash
-$ kubectl apply -f https://github.com/kubedb/docs/raw/{{< param "info.version" >}}/docs/guides/postgres/tls/configure/yamls/tls-standalone.yaml
-postgres.kubedb.com/my-standalone-tls created
+$ kubectl apply -f https://github.com/kubedb/docs/raw/{{< param "info.version" >}}/docs/guides/postgres/tls/configure/yamls/tls-postgres.yaml
+postgres.kubedb.com/pg created
 ```
 
 **Wait for the database to be ready:**
@@ -140,23 +139,27 @@ postgres.kubedb.com/my-standalone-tls created
 Now, watch `Postgres` is going to `Running` state and also watch `StatefulSet` and its pod is created and going to `Running` state,
 
 ```bash
-$ watch -n 3 kubectl get my -n demo my-standalone-tls
-Every 3.0s: kubectl get my -n demo my-standalone-tls            suaas-appscode: Thu Aug 13 18:12:39 2020
+$  watch kubectl get postgres -n demo pg
 
-NAME                VERSION   STATUS    AGE
-my-standalone-tls   8.0.27    Running   7m5s
+Every 2.0s: kubectl get postgres --all-namespaces                       ac-emon: Fri Dec  3 15:14:11 2021
 
-$ watch -n 3 kubectl get sts -n demo my-standalone-tls
-Every 3.0s: kubectl get sts -n demo my-standalone-tls            suaas-appscode: Thu Aug 13 18:12:59 2020
+NAMESPACE   NAME   VERSION   STATUS   AGE
+demo        pg     13.2      Ready    62s
 
-NAME                READY   AGE
-my-standalone-tls   1/1     7m15s
 
-$ watch -n 3 kubectl get pod -n demo -l app.kubernetes.io/name=postgress.kubedb.com,app.kubernetes.io/instance=my-standalone-tls
-Every 3.0s: kubectl get pod -n demo -l app.kubernetes.io/name=postgress.kubedb.com...  suaas-appscode: Thu Aug 13 18:13:19 2020
+$ watch -n 3 kubectl get sts -n demo pg
+Every 2.0s: kubectl get sts -n demo pg                                  ac-emon: Fri Dec  3 15:15:41 2021
 
-NAME                  READY   STATUS    RESTARTS   AGE
-my-standalone-tls-0   1/1     Running   0          7m35s
+NAME   READY   AGE
+pg     3/3     2m30s
+
+$  watch -n 3 kubectl get pod -n demo -l app.kubernetes.io/name=postgreses.kubedb.com,app.kubernetes.io/instance=pg
+Every 3.0s: kubectl get pod -n demo -l app.kubernetes.io/name=postg...  ac-emon: Fri Dec  3 15:17:10 2021
+
+NAME   READY   STATUS    RESTARTS   AGE
+pg-0   2/2     Running   0          3m59s
+pg-1   2/2     Running   0          3m54s
+pg-2   2/2     Running   0          3m49s
 ```
 
 **Verify tls-secrets created successfully:**
@@ -165,87 +168,68 @@ If everything goes well, you can see that our tls-secrets will be created which 
 
 All tls-secret are created by `KubeDB` enterprise operator. Default tls-secret name formed as _{postgres-object-name}-{cert-alias}-cert_.
 
-Let's check the tls-secrets have created,
+Let's check if the tls-secrets have been created properly,
 
 ```bash
-$ kubectl get secrets -n demo | grep "my-standalone-tls"
-my-standalone-tls-auth                      kubernetes.io/basic-auth              2      96s
-my-standalone-tls-client-cert               kubernetes.io/tls                     3      95s
-my-standalone-tls-metrics-exporter-cert     kubernetes.io/tls                     3      95s
-my-standalone-tls-metrics-exporter-config   Opaque                                1      96s
-my-standalone-tls-server-cert               kubernetes.io/tls                     3      95s
-my-standalone-tls-token-s4l94               kubernetes.io/service-account-token   3      96s
+$ kubectl get secrets -n demo | grep pg
+pg-auth                    kubernetes.io/basic-auth              2      4m41s
+pg-client-cert             kubernetes.io/tls                     3      4m40s
+pg-metrics-exporter-cert   kubernetes.io/tls                     3      4m40s
+pg-server-cert             kubernetes.io/tls                     3      4m41s
+pg-token-xvk9p             kubernetes.io/service-account-token   3      4m41s
 ```
 
-**Verify Postgres Standalone configured with TLS/SSL:**
+**Verify Postgres Cluster configured with TLS/SSL:**
 
-Now, we are going to connect to the database for verifying the `Postgres` server has configured with TLS/SSL encryption.
+Now, we are going to connect to the database to verify that `Postgres` server has configured with TLS/SSL encryption.
 
 Let's exec into the pod to verify TLS/SSL configuration,
 
 ```bash
-$ kubectl exec -it -n  demo  my-standalone-tls-0 -- bash
-# ls /etc/postgres/certs/
-ca.crt  client.crt  client.key  server.crt  server.key
+$ kubectl exec -it -n  demo  pg-0 -- bash
+bash-5.1$ ls /tls/certs
+client    exporter  server
 
-# postgres -u${MYSQL_ROOT_USERNAME} -p${MYSQL_ROOT_PASSWORD}
-postgres: [Warning] Using a password on the command line interface can be insecure.
-Welcome to the Postgres monitor.  Commands end with ; or \g.
-Your Postgres connection id is 356
-Server version: 5.7.29 Postgres Community Server (GPL)
+bash-5.1$ ls /tls/certs/server
+ca.crt      server.crt  server.key
 
-Copyright (c) 2000, 2020, Oracle and/or its affiliates. All rights reserved.
+bash-5.1$ psql
+psql (13.2)
+Type "help" for help.
 
-Oracle is a registered trademark of Oracle Corporation and/or its
-affiliates. Other names may be trademarks of their respective
-owners.
+postgres=# SELECT * FROM pg_stat_ssl;
+ pid  | ssl | version |         cipher         | bits | compression | client_dn | client_serial | issuer_dn 
+------+-----+---------+------------------------+------+-------------+-----------+---------------+-----------
+  129 | t   | TLSv1.3 | TLS_AES_256_GCM_SHA384 |  256 | f           |           |               | 
+  130 | t   | TLSv1.3 | TLS_AES_256_GCM_SHA384 |  256 | f           |           |               | 
+ 2175 | f   |         |                        |      |             |           |               | 
+(3 rows)
 
-Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+postgres=# exit
 
-postgres>  SHOW VARIABLES LIKE '%ssl%';
-+--------------------+-----------------------------+
-| Variable_name      | Value                       |
-+--------------------+-----------------------------+
-| admin_ssl_ca       |                             |
-| admin_ssl_capath   |                             |
-| admin_ssl_cert     |                             |
-| admin_ssl_cipher   |                             |
-| admin_ssl_crl      |                             |
-| admin_ssl_crlpath  |                             |
-| admin_ssl_key      |                             |
-| have_openssl       | YES                         |
-| have_ssl           | YES                         |
-| postgresx_ssl_ca      |                             |
-| postgresx_ssl_capath  |                             |
-| postgresx_ssl_cert    |                             |
-| postgresx_ssl_cipher  |                             |
-| postgresx_ssl_crl     |                             |
-| postgresx_ssl_crlpath |                             |
-| postgresx_ssl_key     |                             |
-| ssl_ca             | /etc/postgres/certs/ca.crt     |
-| ssl_capath         | /etc/postgres/certs            |
-| ssl_cert           | /etc/postgres/certs/server.crt |
-| ssl_cipher         |                             |
-| ssl_crl            |                             |
-| ssl_crlpath        |                             |
-| ssl_fips_mode      | OFF                         |
-| ssl_key            | /etc/postgres/certs/server.key |
-+--------------------+-----------------------------+
-24 rows in set (0.00 sec)
+bash-5.1$ cat /var/pv/data/postgresql.conf  | grep ssl
+ssl =on
+ssl_cert_file ='/tls/certs/server/server.crt'
+ssl_key_file ='/tls/certs/server/server.key'
+ssl_ca_file ='/tls/certs/server/ca.crt'
+primary_conninfo = 'application_name=pg-0 host=pg user=postgres password=0WpDlAbHsrNs-7hp sslmode=verify-full sslrootcert=/tls/certs/client/ca.crt'
+#ssl = off
+#ssl_ca_file = ''
+#ssl_cert_file = 'server.crt'
+#ssl_crl_file = ''
+#ssl_key_file = 'server.key'
+#ssl_ciphers = 'HIGH:MEDIUM:+3DES:!aNULL' # allowed SSL ciphers
+#ssl_prefer_server_ciphers = on
+#ssl_ecdh_curve = 'prime256v1'
+#ssl_min_protocol_version = 'TLSv1.2'
+#ssl_max_protocol_version = ''
+#ssl_dh_params_file = ''
+#ssl_passphrase_command = ''
+#ssl_passphrase_command_supports_reload = off
 
-postgres> SHOW VARIABLES LIKE '%require_secure_transport%';
-+--------------------------+-------+
-| Variable_name            | Value |
-+--------------------------+-------+
-| require_secure_transport | ON    |
-+--------------------------+-------+
-1 row in set (0.01 sec)
-
-postgres> exit
-Bye
 ```
 
-The above output shows that the `Postgres` server is configured to TLS/SSL. You can also see that the `.crt` and `.key` files are stored in the `/etc/ postgres/certs/` directory for client and server.
+The above output shows that the `Postgres` server is configured with TLS/SSL configuration and in `/var/pv/data/postgresql.conf ` you can see that `ssl= on`. You can also see that the `.crt` and `.key` files are stored in the `/tls/certs/` directory for client and server.
 
 **Verify secure connection for SSL required user:**
 
@@ -255,314 +239,28 @@ Let's connect to the database server with a secure connection,
 
 ```bash
 # creating SSL required user
-$ kubectl exec -it -n  demo  my-standalone-tls-0 -- bash
+$ kubectl exec -it -n  demo  pg-0 -- bash
 
-root@postgres-tls-0:/# postgres -uroot -p${MYSQL_ROOT_PASSWORD}
-postgres: [Warning] Using a password on the command line interface can be insecure.
-Welcome to the Postgres monitor.  Commands end with ; or \g.
-Your Postgres connection id is 27
-Server version: 8.0.23 Postgres Community Server - GPL
+bash-5.1$ psql -d "user=postgres password=$POSTGRES_PASSWORD host=pg port=5432 connect_timeout=15 dbname=postgres sslmode=verify-full sslrootcert=/tls/certs/client/ca.crt"
+psql (13.2)
+SSL connection (protocol: TLSv1.3, cipher: TLS_AES_256_GCM_SHA384, bits: 256, compression: off)
+Type "help" for help.
 
-Copyright (c) 2000, 2021, Oracle and/or its affiliates.
+postgres=# exit
 
-Oracle is a registered trademark of Oracle Corporation and/or its
-affiliates. Other names may be trademarks of their respective
-owners.
-
-Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
-
-postgres> CREATE USER 'postgres_user'@'localhost' IDENTIFIED BY 'pass' REQUIRE SSL;
-Query OK, 0 rows affected (0.00 sec)
-
-postgres> FLUSH PRIVILEGES;
-Query OK, 0 rows affected (0.00 sec)
-
-postgres> exit
-Bye
-
-# accessing the database server with newly created user
-root@postgres-tls-0:/# postgres -upostgres_user -ppass
-postgres: [Warning] Using a password on the command line interface can be insecure.
-ERROR 1045 (28000): Access denied for user 'postgres_user'@'localhost' (using password: YES)
-
-# accessing the database server newly created user with ssl-mode=disable
-root@postgres-tls-0:/# postgres -upostgres_user -ppass --ssl-mode=disabled
-postgres: [Warning] Using a password on the command line interface can be insecure.
-ERROR 1045 (28000): Access denied for user 'postgres_user'@'localhost' (using password: YES)
-
-# accessing the database server newly created user with certificates
-root@postgres-tls-0:/# postgres -upostgres_user -ppass --ssl-ca=/etc/postgres/certs/ca.crt  --ssl-cert=/etc/postgres/certs/client.crt --ssl-key=/etc/postgres/certs/client.key
-postgres: [Warning] Using a password on the command line interface can be insecure.
-Welcome to the Postgres monitor.  Commands end with ; or \g.
-Your Postgres connection id is 47
-Server version: 5.7.29 Postgres Community Server (GPL)
-
-Copyright (c) 2000, 2020, Oracle and/or its affiliates. All rights reserved.
-
-Oracle is a registered trademark of Oracle Corporation and/or its
-affiliates. Other names may be trademarks of their respective
-owners.
-
-Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
-
-You are enforcing ssl conection via unix socket. Please consider
-switching ssl off as it does not make connection via unix socket
-any more secure.
-postgres> exit
-Bye
+bash-5.1$ psql -d "user=postgres password=$POSTGRES_PASSWORD host=pg port=5432 connect_timeout=15 dbname=postgres sslmode=verify-full"
+psql: error: root certificate file "/var/lib/postgresql/.postgresql/root.crt" does not exist
+Either provide the file or change sslmode to disable server certificate verification.
 ```
 
-From the above output, you can see that only using client certificate we can access the database securely, otherwise, it shows "Access denied". Our client certificate is stored in `/etc/postgres/certs/` directory.
-
-## Deploy Postgres Group Replication with TLS/SSL configuration
-
-Now, we are going to deploy a `Postgres` group replication with TLS/SSL configuration. Below is the YAML for Postgres group replication that we are going to create,
-
-```yaml
-apiVersion: kubedb.com/v1alpha2
-kind: Postgres
-metadata:
-  name: my-group-tls
-  namespace: demo
-spec:
-  version: "8.0.27"
-  replicas: 3
-  topology:
-    mode: GroupReplication
-    group:
-      name: "dc002fc3-c412-4d18-b1d4-66c1fbfbbc9b"
-  storageType: Durable
-  storage:
-    storageClassName: "standard"
-    accessModes:
-      - ReadWriteOnce
-    resources:
-      requests:
-        storage: 1Gi
-  requireSSL: true
-  tls:
-    issuerRef:
-      apiGroup: cert-manager.io
-      kind: Issuer
-      name: postgres-issuer
-    certificates:
-    - alias: server
-      subject:
-        organizations:
-        - kubedb:server
-      dnsNames:
-      - localhost
-      ipAddresses:
-      - "127.0.0.1"
-  terminationPolicy: WipeOut
-```
-
-**Deploy Postgres group replication:**
-
-```bash
-kubectl apply -f https://github.com/kubedb/docs/raw/{{< param "info.version" >}}/docs/guides/postgres/tls/configure/yamls/tls-group.yaml
-postgres.kubedb.com/my-group-tls created
-```
-
-**Wait for the database to be ready :**
-
-Now, watch `Postgres` is going to `Running` state and also watch `StatefulSet` and its pod is created and going to `Running` state,
-
-```bash
-$ watch -n 3 kubectl get my -n demo my-group-tls
-Every 3.0s: kubectl get my -n demo my-group-tls                 suaas-appscode: Thu Aug 13 19:02:15 2020
-
-NAME           VERSION   STATUS    AGE
-my-group-tls   8.0.27    Running   9m41s
-
-$ watch -n 3 kubectl get sts -n demo my-group-tls
-Every 3.0s: kubectl get sts -n demo my-group-tls                suaas-appscode: Thu Aug 13 19:02:42 2020
-
-NAME           READY   AGE
-my-group-tls   3/3     9m51s
-
-$ watch -n 3 kubectl get pod -n demo -l app.kubernetes.io/name=postgress.kubedb.com,app.kubernetes.io/instance=my-group-tls
-Every 3.0s: kubectl get pod -n demo -l app.kubernetes.io/name=postgress.kubedb.com  suaas-appscode: Thu Aug 13 19:03:02 2020
-
-NAME             READY   STATUS    RESTARTS   AGE
-my-group-tls-0   2/2     Running   0          10m
-my-group-tls-1   2/2     Running   0          4m4s
-my-group-tls-2   2/2     Running   0          2m3s
-```
-
-**Verify tls-secrets created successfully :**
-
-If everything goes well, you can see that our tls-secrets will be created which contains server, client, exporter certificate. Server tls-secret will be used for server configuration and client tls-secret will be used for a secure connection.
-
-All tls-secret are created by `KubeDB` enterprise operator. Default tls-secret name formed as _{postgres-object-name}-{cert-alias}-cert_.
-
-Let's check the tls-secrets have created,
-
-```bash
-$ kubectl get secrets -n demo | grep "my-group-tls"
-my-group-tls-client-cert                  kubernetes.io/tls                     3      13m
-my-group-tls-auth                           Opaque                                2      13m
-my-group-tls-metrics-exporter-cert          kubernetes.io/tls                     3      13m
-my-group-tls-metrics-exporter-config        Opaque                                1      13m
-my-group-tls-server-cert                    kubernetes.io/tls                     3      13m
-my-group-tls-token-49sjm                    kubernetes.io/service-account-token   3      13m
-```
-
-**Verify Postgres Standalone configured to TLS/SSL:**
-
-Now, we are going to connect to the database for verifying the `Postgres` group replication has configured with TLS/SSL encryption.
-
-Let's exec into the pod to verify TLS/SSL configuration,
-
-```bash
-$ kubectl exec -it -n  demo  my-group-tls-0 -c postgres -- bash
-root@my-group-0:/# ls /etc/postgres/certs/
-ca.crt  client.crt  client.key  server.crt  server.key
-
-root@my-group-0:/# postgres -u${MYSQL_ROOT_USERNAME} -p{MYSQL_ROOT_PASSWORD}
-postgres: [Warning] Using a password on the command line interface can be insecure.
-Welcome to the Postgres monitor.  Commands end with ; or \g.
-Your Postgres connection id is 27
-Server version: 8.0.23 Postgres Community Server - GPL
-
-Copyright (c) 2000, 2021, Oracle and/or its affiliates.
-
-Oracle is a registered trademark of Oracle Corporation and/or its
-affiliates. Other names may be trademarks of their respective
-owners.
-
-Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
-
-postgres> SHOW VARIABLES LIKE '%ssl%';
-+---------------------------------------------------+-----------------------------+
-| Variable_name                                     | Value                       |
-+---------------------------------------------------+-----------------------------+
-| admin_ssl_ca                                      |                             |
-| admin_ssl_capath                                  |                             |
-| admin_ssl_cert                                    |                             |
-| admin_ssl_cipher                                  |                             |
-| admin_ssl_crl                                     |                             |
-| admin_ssl_crlpath                                 |                             |
-| admin_ssl_key                                     |                             |
-| group_replication_recovery_ssl_ca                 |                             |
-| group_replication_recovery_ssl_capath             |                             |
-| group_replication_recovery_ssl_cert               |                             |
-| group_replication_recovery_ssl_cipher             |                             |
-| group_replication_recovery_ssl_crl                |                             |
-| group_replication_recovery_ssl_crlpath            |                             |
-| group_replication_recovery_ssl_key                |                             |
-| group_replication_recovery_ssl_verify_server_cert | OFF                         |
-| group_replication_recovery_use_ssl                | ON                          |
-| group_replication_ssl_mode                        | REQUIRED                    |
-| have_openssl                                      | YES                         |
-| have_ssl                                          | YES                         |
-| postgresx_ssl_ca                                     |                             |
-| postgresx_ssl_capath                                 |                             |
-| postgresx_ssl_cert                                   |                             |
-| postgresx_ssl_cipher                                 |                             |
-| postgresx_ssl_crl                                    |                             |
-| postgresx_ssl_crlpath                                |                             |
-| postgresx_ssl_key                                    |                             |
-| ssl_ca                                            | /etc/postgres/certs/ca.crt     |
-| ssl_capath                                        | /etc/postgres/certs            |
-| ssl_cert                                          | /etc/postgres/certs/server.crt |
-| ssl_cipher                                        |                             |
-| ssl_crl                                           |                             |
-| ssl_crlpath                                       |                             |
-| ssl_fips_mode                                     | OFF                         |
-| ssl_key                                           | /etc/postgres/certs/server.key |
-+---------------------------------------------------+-----------------------------+
-34 rows in set (0.02 sec)
-
-
-postgres> SHOW VARIABLES LIKE '%require_secure_transport%';
-+--------------------------+-------+
-| Variable_name            | Value |
-+--------------------------+-------+
-| require_secure_transport | ON    |
-+--------------------------+-------+
-1 row in set (0.00 sec)
-
-postgres> exit
-Bye
-```
-
-The above output shows that the `Postgres` server is configured to TLS/SSL. You can also see that the `.crt` and `.key` files are stored in the `/etc/ postgres/certs/` directory for client and server.
-
-**Verify secure connection for SSL required user:**
-
-Now, you can create an SSL required user that will be used to connect to the database with a secure connection.
-
-Let's connect to the database server with a secure connection,
-
-```bash
-# creating SSL required user
-$ kubectl exec -it -n  demo  my-group-tls-0 -c postgres -- bash
-
-root@my-group-0:/# postgres -uroot -p${MYSQL_ROOT_PASSWORD}
-postgres: [Warning] Using a password on the command line interface can be insecure.
-Welcome to the Postgres monitor.  Commands end with ; or \g.
-Your Postgres connection id is 27
-Server version: 8.0.23 Postgres Community Server - GPL
-
-Copyright (c) 2000, 2021, Oracle and/or its affiliates.
-
-Oracle is a registered trademark of Oracle Corporation and/or its
-affiliates. Other names may be trademarks of their respective
-owners.
-
-Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
-
-postgres> CREATE USER 'postgres_user'@'localhost' IDENTIFIED BY 'pass' REQUIRE SSL;
-Query OK, 0 rows affected (0.01 sec)
-
-postgres> FLUSH PRIVILEGES;
-Query OK, 0 rows affected (0.00 sec)
-
-postgres> exit
-Bye
-
-# accessing database server with newly created user
-root@my-group-0:/# postgres -upostgres_user -ppass
-postgres: [Warning] Using a password on the command line interface can be insecure.
-ERROR 1045 (28000): Access denied for user 'postgres_user'@'localhost' (using password: YES)
-
-# accessing the database server newly created user with ssl-mode=disable
-root@my-group-0:/# postgres -upostgres_user -ppass --ssl-mode=disabled
-postgres: [Warning] Using a password on the command line interface can be insecure.
-ERROR 1045 (28000): Access denied for user 'postgres_user'@'localhost' (using password: YES)
-
-# accessing the database server newly created user with certificates
-root@my-group-0:/# postgres -upostgres_user -ppass --ssl-ca=/etc/postgres/certs/ca.crt  --ssl-cert=/etc/postgres/certs/client.crt --ssl-key=/etc/postgres/certs/client.key
-postgres: [Warning] Using a password on the command line interface can be insecure.
-Welcome to the Postgres monitor.  Commands end with ; or \g.
-Your Postgres connection id is 384
-Server version: 5.7.29-log Postgres Community Server (GPL)
-
-Copyright (c) 2000, 2020, Oracle and/or its affiliates. All rights reserved.
-
-Oracle is a registered trademark of Oracle Corporation and/or its
-affiliates. Other names may be trademarks of their respective
-owners.
-
-Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
-
-You are enforcing ssl connection via unix socket. Please consider
-switching ssl off as it does not make connection via unix socket
-any more secure.
-postgres> exit
-Bye
-```
-
-From the above output, you can see that only using client certificate we can access the database securely, otherwise, it shows "Access denied". Our client certificate is stored in `/etc/postgres/certs/` directory.
+From the above output, you can see that only using ca certificate we can access the database securely, otherwise, it ask for the ca verification. Our client certificate is stored in `ls /tls/certs/client` directory.
 
 ## Cleaning up
 
 To clean up the Kubernetes resources created by this tutorial, run:
 
 ```bash
-kubectl delete my -n demo  my-standalone-tls
-kubectl delete my -n demo  my-group-tls
+kubectl delete pg -n demo  pg
 kubectl delete ns demo
 ```
 

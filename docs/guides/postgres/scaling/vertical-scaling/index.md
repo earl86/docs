@@ -1,13 +1,12 @@
 ---
-title: Vertical Scaling Postgres standalone
+title: Vertical Scaling
 menu:
   docs_{{ .version }}:
-    identifier: guides-postgres-scaling-vertical-standalone
-    name: Standalone
-    parent: guides-postgres-scaling-vertical
+    identifier: guides-postgres-scaling-vertical
+    name: Vertical Scaling
+    parent: guides-postgres-scaling
     weight: 20
 menu_name: docs_{{ .version }}
-section_menu_id: guides
 ---
 
 > New to KubeDB? Please start [here](/docs/README.md).
@@ -27,7 +26,7 @@ This guide will show you how to use `KubeDB` enterprise operator to update the r
 - You should be familiar with the following `KubeDB` concepts:
   - [Postgres](/docs/guides/postgres/concepts/postgres.md)
   - [PostgresOpsRequest](/docs/guides/postgres/concepts/opsrequest.md)
-  - [Vertical Scaling Overview](/docs/guides/postgres/scaling/vertical-scaling/overview/imdex.md)
+  - [Vertical Scaling Overview](/docs/guides/postgres/scaling/vertical-scaling/overview/index.md)
 
 To keep everything isolated, we are going to use a separate namespace called `demo` throughout this tutorial.
 
@@ -52,16 +51,37 @@ When you have installed `KubeDB`, it has created `PostgresVersion` CR for all su
 
 ```bash
 $ kubectl get postgresversion
-NAME        VERSION   DB_IMAGE                  DEPRECATED   AGE
-5.7.25-v2   5.7.25    kubedb/postgres:5.7.25-v2                 3h55m
-5.7.36   5.7.29    kubedb/postgres:5.7.36                 3h55m
-5.7.36   5.7.31    kubedb/postgres:5.7.36                 3h55m
-5.7.36   5.7.33    kubedb/postgres:5.7.36                 3h55m
-8.0.14-v2   8.0.14    kubedb/postgres:8.0.14-v2                 3h55m
-8.0.20-v1   8.0.20    kubedb/postgres:8.0.20-v1                 3h55m
-8.0.27   8.0.21    kubedb/postgres:8.0.27                 3h55m
-8.0.27      8.0.27    kubedb/postgres:8.0.27                    3h55m
-8.0.3-v2    8.0.3     kubedb/postgres:8.0.3-v2                  3h55m
+NAME                       VERSION   DISTRIBUTION   DB_IMAGE                               DEPRECATED   AGE
+10.16                      10.16     Official       postgres:10.16-alpine                               63s
+10.16-debian               10.16     Official       postgres:10.16                                      63s
+10.19                      10.19     Official       postgres:10.19-bullseye                             63s
+10.19-bullseye             10.19     Official       postgres:10.19-bullseye                             63s
+11.11                      11.11     Official       postgres:11.11-alpine                               63s
+11.11-debian               11.11     Official       postgres:11.11                                      63s
+11.14                      11.14     Official       postgres:11.14-alpine                               63s
+11.14-bullseye             11.14     Official       postgres:11.14-bullseye                             63s
+11.14-bullseye-postgis     11.14     PostGIS        postgis/postgis:11-3.1                              63s
+12.6                       12.6      Official       postgres:12.6-alpine                                63s
+12.6-debian                12.6      Official       postgres:12.6                                       63s
+12.9                       12.9      Official       postgres:12.9-alpine                                63s
+12.9-bullseye              12.9      Official       postgres:12.9-bullseye                              63s
+12.9-bullseye-postgis      12.9      PostGIS        postgis/postgis:12-3.1                              63s
+13.2                       13.2      Official       postgres:13.2-alpine                                63s
+13.2-debian                13.2      Official       postgres:13.2                                       63s
+13.5                       13.5      Official       postgres:13.5-alpine                                63s
+13.5-bullseye              13.5      Official       postgres:13.5-bullseye                              63s
+13.5-bullseye-postgis      13.5      PostGIS        postgis/postgis:13-3.1                              63s
+14.1                       14.1      Official       postgres:14.1-alpine                                63s
+14.1-bullseye              14.1      Official       postgres:14.1-bullseye                              63s
+14.1-bullseye-postgis      14.1      PostGIS        postgis/postgis:14-3.1                              63s
+9.6.21                     9.6.21    Official       postgres:9.6.21-alpine                              63s
+9.6.21-debian              9.6.21    Official       postgres:9.6.21                                     63s
+9.6.24                     9.6.24    Official       postgres:9.6.24-alpine                              63s
+9.6.24-bullseye            9.6.24    Official       postgres:9.6.24-bullseye                            63s
+timescaledb-2.1.0-pg11     11.11     TimescaleDB    timescale/timescaledb:2.1.0-pg11-oss                63s
+timescaledb-2.1.0-pg12     12.6      TimescaleDB    timescale/timescaledb:2.1.0-pg12-oss                63s
+timescaledb-2.1.0-pg13     13.2      TimescaleDB    timescale/timescaledb:2.1.0-pg13-oss                63s
+timescaledb-2.5.0-pg14.1   14.1      TimescaleDB    timescale/timescaledb:2.5.0-pg14-oss                63s
 ```
 
 The version above that does not show `DEPRECATED` `true` is supported by `KubeDB` for `Postgres`. You can use any non-deprecated version. Here, we are going to create a standalone using non-deprecated `Postgres`  version `8.0.27`.
@@ -74,10 +94,12 @@ In this section, we are going to deploy a Postgres standalone. Then, in the next
 apiVersion: kubedb.com/v1alpha2
 kind: Postgres
 metadata:
-  name: my-standalone
+  name: pg
   namespace: demo
 spec:
-  version: "8.0.27"
+  version: "13.2"
+  replicas: 3
+  standbyMode: Hot
   storageType: Durable
   storage:
     storageClassName: "standard"
