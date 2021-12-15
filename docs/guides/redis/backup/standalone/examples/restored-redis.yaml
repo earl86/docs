@@ -1,0 +1,18 @@
+apiVersion: kubedb.com/v1alpha2
+kind: Redis
+metadata:
+  name: restore-rd
+  namespace: demo
+spec:
+  version: 6.2.5
+  storageType: Durable
+  storage:
+    resources:
+      requests:
+        storage: 1Gi
+    storageClassName: "standard"
+    accessModes:
+      - ReadWriteOnce
+  init:
+    waitForInitialRestore: true
+  terminationPolicy: WipeOut
