@@ -1,0 +1,20 @@
+apiVersion: appcatalog.appscode.com/v1alpha1
+kind: AppBinding
+metadata:
+  labels:
+    app.kubernetes.io/component: database
+    app.kubernetes.io/instance: demo-rd
+    app.kubernetes.io/managed-by: kubedb.com
+    app.kubernetes.io/name: postgreses.kubedb.com
+  name: demo-rd
+  namespace: demo
+spec:
+  clientConfig:
+    service:
+      name: rd
+      port: 6379
+      scheme: redis
+  secret:
+    name: rd-auth
+  type: kubedb.com/redis
+  version: 6.2.5

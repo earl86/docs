@@ -1,0 +1,16 @@
+apiVersion: kubedb.com/v1alpha2
+kind: Redis
+metadata:
+  name: demo-rd
+  namespace: demo
+spec:
+  version: 6.2.5
+  storageType: Durable
+  storage:
+    resources:
+      requests:
+        storage: 1Gi
+    storageClassName: "standard"
+    accessModes:
+      - ReadWriteOnce
+  terminationPolicy: WipeOut
