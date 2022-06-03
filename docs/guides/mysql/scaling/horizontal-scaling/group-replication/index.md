@@ -52,16 +52,14 @@ When you have installed `KubeDB`, it has created `MySQLVersion` CR for all suppo
 
 ```bash
 $ kubectl get mysqlversion
-NAME        VERSION   DB_IMAGE                  DEPRECATED   AGE
-5.7.25-v2   5.7.25    kubedb/mysql:5.7.25-v2                 3h55m
-5.7.36   5.7.29    kubedb/mysql:5.7.36                 3h55m
-5.7.36   5.7.31    kubedb/mysql:5.7.36                 3h55m
-5.7.36   5.7.33    kubedb/mysql:5.7.36                 3h55m
-8.0.14-v2   8.0.14    kubedb/mysql:8.0.14-v2                 3h55m
-8.0.20-v1   8.0.20    kubedb/mysql:8.0.20-v1                 3h55m
-8.0.27   8.0.21    kubedb/mysql:8.0.27                 3h55m
-8.0.27      8.0.27    kubedb/mysql:8.0.27                    3h55m
-8.0.3-v2    8.0.3     kubedb/mysql:8.0.3-v2                  3h55m
+NAME            VERSION   DISTRIBUTION   DB_IMAGE                    DEPRECATED   AGE
+5.7.35-v1       5.7.35    Official       mysql:5.7.35                             56m
+5.7.36          5.7.36    Official       mysql:5.7.36                             56m
+8.0.17          8.0.17    Official       mysql:8.0.17                             56m
+8.0.27          8.0.27    Official       mysql:8.0.27                             56m
+8.0.27-innodb   8.0.27    MySQL          mysql/mysql-server:8.0.27                56m
+8.0.29          8.0.29    Official       mysql:8.0.29                             56m
+8.0.3-v4        8.0.3     Official       mysql:8.0.3                              56m
 ```
 
 The version above that does not show `DEPRECATED` `true` is supported by `KubeDB` for `MySQL`. You can use any non-deprecated version. Here, we are going to create a MySQL Group Replication using `MySQL`  `8.0.27`.
@@ -77,12 +75,10 @@ metadata:
   name: my-group
   namespace: demo
 spec:
-  version: "8.0.27"
+  version: "8.0.29"
   replicas: 3
   topology:
     mode: GroupReplication
-    group:
-      name: "dc002fc3-c412-4d18-b1d4-66c1fbfbbc9b"
   storageType: Durable
   storage:
     storageClassName: "standard"
@@ -108,24 +104,19 @@ Now, watch `MySQL` is going to  `Running` state and also watch `StatefulSet` and
 
 ```bash
 $ watch -n 3 kubectl get my -n demo my-group
-Every 3.0s: kubectl get my -n demo my-group                     suaas-appscode: Tue Jun 30 22:43:57 2020
 
 NAME       VERSION   STATUS    AGE
-my-group   8.0.27    Running   16m
+my-group   8.0.29    Ready     2m
 
 $ watch -n 3 kubectl get sts -n demo my-group
-Every 3.0s: kubectl get sts -n demo my-group                     Every 3.0s: kubectl get sts -n demo my-group                    suaas-appscode: Tue Jun 30 22:44:35 2020
-
 NAME       READY   AGE
-my-group   3/3     16m
+my-group   3/3     2m
 
 $ watch -n 3 kubectl get pod -n demo -l app.kubernetes.io/name=mysqls.kubedb.com,app.kubernetes.io/instance=my-group
-Every 3.0s: kubectl get pod -n demo -l app.kubernetes.io/name=mysqls.kubedb.com  suaas-appscode: Tue Jun 30 22:45:33 2020
-
 NAME         READY   STATUS    RESTARTS   AGE
-my-group-0   2/2     Running   0          17m
-my-group-1   2/2     Running   0          14m
-my-group-2   2/2     Running   0          11m
+my-group-0   2/2     Running   0          3m22s
+my-group-1   2/2     Running   0          3m18s
+my-group-2   2/2     Running   0          3m14s
 ```
 
 Let's verify that the StatefulSet's pods have joined into a group replication cluster,
@@ -135,17 +126,18 @@ $ kubectl get secrets -n demo my-group-auth -o jsonpath='{.data.\username}' | ba
 root
 
 $ kubectl get secrets -n demo my-group-auth -o jsonpath='{.data.\password}' | base64 -d
-sWfUMoqRpOJyomgb
+gcv5(gaHfVjHg)RI
 
-$ kubectl exec -it -n demo my-group-0 -c mysql -- mysql -u root --password=sWfUMoqRpOJyomgb --host=my-group-0.my-group-gvr.demo -e "select * from performance_schema.replication_group_members"
+$ kubectl exec -it -n demo my-group-0 -c mysql -- mysql -u root --password=sWfUMoqRpOJyomgb --host=my-group-0.my-group-pods.demo -e "select * from performance_schema.replication_group_members"
 mysql: [Warning] Using a password on the command line interface can be insecure.
-+---------------------------+--------------------------------------+------------------------------+-------------+--------------+-------------+----------------+
-| CHANNEL_NAME              | MEMBER_ID                            | MEMBER_HOST                  | MEMBER_PORT | MEMBER_STATE | MEMBER_ROLE | MEMBER_VERSION |
-+---------------------------+--------------------------------------+------------------------------+-------------+--------------+-------------+----------------+
-| group_replication_applier | 596be47b-baef-11ea-859a-02c946ef4fe7 | my-group-1.my-group-gvr.demo |        3306 | ONLINE       | SECONDARY   | 8.0.23         |
-| group_replication_applier | 815974c2-baef-11ea-bd7e-a695cbdbd6cc | my-group-2.my-group-gvr.demo |        3306 | ONLINE       | SECONDARY   | 8.0.23         |
-| group_replication_applier | ec61cef2-baee-11ea-adb0-9a02630bae5d | my-group-0.my-group-gvr.demo |        3306 | ONLINE       | PRIMARY     | 8.0.23         |
-+---------------------------+--------------------------------------+------------------------------+-------------+--------------+-------------+----------------+
++---------------------------+--------------------------------------+-----------------------------------+-------------+--------------+-------------+----------------+----------------------------+
+| CHANNEL_NAME              | MEMBER_ID                            | MEMBER_HOST                       | MEMBER_PORT | MEMBER_STATE | MEMBER_ROLE | MEMBER_VERSION | MEMBER_COMMUNICATION_STACK |
++---------------------------+--------------------------------------+-----------------------------------+-------------+--------------+-------------+----------------+----------------------------+
+| group_replication_applier | 84eeaf81-e311-11ec-8713-ca8a36a676b8 | my-group-2.my-group-pods.demo.svc |        3306 | ONLINE       | SECONDARY   | 8.0.29         | XCom                       |
+| group_replication_applier | 8620667d-e311-11ec-b0bd-2e61c086151c | my-group-0.my-group-pods.demo.svc |        3306 | ONLINE       | PRIMARY     | 8.0.29         | XCom                       |
+| group_replication_applier | 8e790eba-e311-11ec-b867-2a6a31edcdec | my-group-1.my-group-pods.demo.svc |        3306 | ONLINE       | SECONDARY   | 8.0.29         | XCom                       |
++---------------------------+--------------------------------------+-----------------------------------+-------------+--------------+-------------+----------------+----------------------------+
+
 ```
 
 So, we can see that our group replication cluster has 3 members. Now, we are ready to apply the horizontal scale to this group replication.
@@ -192,8 +184,7 @@ If everything goes well, `KubeDB` enterprise operator will scale up the Stateful
 First, we will wait for `MySQLOpsRequest` to be successful.  Run the following command to watch `MySQlOpsRequest` cr,
 
 ```bash
-Every 3.0s: kubectl get myops -n demo my-scale-up              suaas-appscode: Sat Jul 25 15:49:42 2020
-
+$ watch kubectl get mysqlopsrequest -n demo
 NAME            TYPE                STATUS       AGE
 my-scale-up     HorizontalScaling   Successful   2m55s
 ```
@@ -202,67 +193,69 @@ You can see from the above output that the `MySQLOpsRequest` has succeeded. If w
 
 ```bash
 $ kubectl describe myops -n demo my-scale-up
-$ Name:         my-scale-up
+Name:         my-scale-up
 Namespace:    demo
 Labels:       <none>
 Annotations:  <none>
 API Version:  ops.kubedb.com/v1alpha1
 Kind:         MySQLOpsRequest
 Metadata:
-  Creation Timestamp:  2021-03-10T11:18:39Z
-  Generation:          2
-    Manager:         kubedb-enterprise
+  Creation Timestamp:  2022-06-03T07:56:47Z
+  Generation:          1
+  Managed Fields:
+    API Version:  ops.kubedb.com/v1alpha1
+    Fields Type:  FieldsV1
+    Manager:         kubedb-ops-manager
     Operation:       Update
-    Time:            2021-03-10T11:20:45Z
-  Resource Version:  1088850
-  Self Link:         /apis/ops.kubedb.com/v1alpha1/namespaces/demo/mysqlopsrequests/my-scale-up
-  UID:               f60f5bbc-3086-4b86-bf74-baf0b39ff358
+    Time:            2022-06-03T07:56:47Z
+  Resource Version:  456415
+  UID:               a9c900cc-8b67-4ce3-b097-0516b6cdb25b
 Spec:
   Database Ref:
     Name:  my-group
   Horizontal Scaling:
-    Member:              5
-  Stateful Set Ordinal:  0
-  Type:                  HorizontalScaling
+    Member:  5
+  Type:      HorizontalScaling
 Status:
   Conditions:
-    Last Transition Time:  2021-03-10T11:18:39Z
+    Last Transition Time:  2022-06-03T07:56:47Z
     Message:               Controller has started to Progress the MySQLOpsRequest: demo/my-scale-up
-    Observed Generation:   2
+    Observed Generation:   1
     Reason:                OpsRequestProgressingStarted
     Status:                True
     Type:                  Progressing
-    Last Transition Time:  2021-03-10T11:18:40Z
+    Last Transition Time:  2022-06-03T07:56:47Z
     Message:               Horizontal scaling started in MySQL: demo/my-group for MySQLOpsRequest: my-scale-up
-    Observed Generation:   2
+    Observed Generation:   1
     Reason:                HorizontalScalingStarted
     Status:                True
     Type:                  Scaling
-    Last Transition Time:  2021-03-10T11:20:45Z
+    Last Transition Time:  2022-06-03T07:58:02Z
     Message:               Horizontal scaling Up performed successfully in MySQL: demo/my-group for MySQLOpsRequest: my-scale-up
-    Observed Generation:   2
+    Observed Generation:   1
     Reason:                SuccessfullyPerformedHorizontalScaling
     Status:                True
     Type:                  ScalingUp
-    Last Transition Time:  2021-03-10T11:20:45Z
+    Last Transition Time:  2022-06-03T07:58:02Z
     Message:               Controller has successfully scaled the MySQL demo/my-scale-up
-    Observed Generation:   2
+    Observed Generation:   1
     Reason:                OpsRequestProcessedSuccessfully
     Status:                True
     Type:                  Successful
   Observed Generation:     3
   Phase:                   Successful
 Events:
-  Type    Reason      Age   From                        Message
-  ----    ------      ----  ----                        -------
-  Normal  Starting    28m   KubeDB Enterprise Operator  Start processing for MySQLOpsRequest: demo/my-scale-up
-  Normal  Starting    28m   KubeDB Enterprise Operator  Pausing MySQL databse: demo/my-group
-  Normal  Successful  28m   KubeDB Enterprise Operator  Successfully paused MySQL database: demo/my-group for MySQLOpsRequest: my-scale-up
-  Normal  Starting    28m   KubeDB Enterprise Operator  Horizontal scaling started in MySQL: demo/my-group for MySQLOpsRequest: my-scale-up
-  Normal  Successful  26m   KubeDB Enterprise Operator  Horizontal scaling Up performed successfully in MySQL: demo/my-group for MySQLOpsRequest: my-scale-up
-  Normal  Starting    26m   KubeDB Enterprise Operator  Resuming MySQL database: demo/my-group
-  Normal  Successful  26m   KubeDB Enterprise Operator  Successfully resumed MySQL database: demo/my-group
-  Normal  Successful  26m   KubeDB Enterprise Operator  Controller has Successfully scaled the MySQL database: demo/my-group
+  Type    Reason      Age    From                        Message
+  ----    ------      ----   ----                        -------
+  Normal  Starting    3m52s  KubeDB Enterprise Operator  Start processing for MySQLOpsRequest: demo/my-scale-up
+  Normal  Starting    3m52s  KubeDB Enterprise Operator  Pausing MySQL databse: demo/my-group
+  Normal  Successful  3m52s  KubeDB Enterprise Operator  Successfully paused MySQL database: demo/my-group for MySQLOpsRequest: my-scale-up
+  Normal  Starting    3m52s  KubeDB Enterprise Operator  Horizontal scaling started in MySQL: demo/my-group for MySQLOpsRequest: my-scale-up
+  Normal  Successful  2m37s  KubeDB Enterprise Operator  Horizontal scaling Up performed successfully in MySQL: demo/my-group for MySQLOpsRequest: my-scale-up
+  Normal  Starting    2m37s  KubeDB Enterprise Operator  Resuming MySQL database: demo/my-group
+  Normal  Successful  2m37s  KubeDB Enterprise Operator  Successfully resumed MySQL database: demo/my-group
+  Normal  Successful  2m37s  KubeDB Enterprise Operator  Controller has Successfully scaled the MySQL database: demo/my-group
+
 ```
 
 Now, we are going to verify whether the number of members has increased to meet up the desired state, Let's check,
@@ -272,19 +265,20 @@ $ kubectl get secrets -n demo my-group-auth -o jsonpath='{.data.\username}' | ba
 root
 
 $ kubectl get secrets -n demo my-group-auth -o jsonpath='{.data.\password}' | base64 -d
-Y28qkWFQ8QHVzq2h
+gcv5(gaHfVjHg)RI
 
-$ kubectl exec -it -n demo my-group-0 -c mysql -- mysql -u root --password=Y28qkWFQ8QHVzq2h --host=my-group-0.my-group-gvr.demo -e "select * from performance_schema.replication_group_members"
+$ kubectl exec -it -n demo my-group-0 -c mysql -- mysql -u root --password='gcv5(gaHfVjHg)RI' --host=my-group-0.my-group-pods.demo -e "select * from performance_schema.replication_group_members"
 mysql: [Warning] Using a password on the command line interface can be insecure.
-+---------------------------+--------------------------------------+------------------------------+-------------+--------------+-------------+----------------+
-| CHANNEL_NAME              | MEMBER_ID                            | MEMBER_HOST                  | MEMBER_PORT | MEMBER_STATE | MEMBER_ROLE | MEMBER_VERSION |
-+---------------------------+--------------------------------------+------------------------------+-------------+--------------+-------------+----------------+
-| group_replication_applier | 4b76f5c8-baff-11ea-9848-425294afbbbf | my-group-3.my-group-gvr.demo |        3306 | ONLINE       | SECONDARY   | 8.0.23         |
-| group_replication_applier | 73c1f150-baff-11ea-9394-4a8c424ea5c2 | my-group-4.my-group-gvr.demo |        3306 | ONLINE       | SECONDARY   | 8.0.23         |
-| group_replication_applier | 9f6c694c-bafd-11ea-8ad4-822669614bde | my-group-0.my-group-gvr.demo |        3306 | ONLINE       | PRIMARY     | 8.0.23         |
-| group_replication_applier | c9d82f09-bafd-11ea-ab3a-764d326534a6 | my-group-1.my-group-gvr.demo |        3306 | ONLINE       | SECONDARY   | 8.0.23         |
-| group_replication_applier | eff81073-bafd-11ea-9f3d-ca1e99c33106 | my-group-2.my-group-gvr.demo |        3306 | ONLINE       | SECONDARY   | 8.0.23         |
-+---------------------------+--------------------------------------+------------------------------+-------------+--------------+-------------+----------------+
++---------------------------+--------------------------------------+-----------------------------------+-------------+--------------+-------------+----------------+----------------------------+
+| CHANNEL_NAME              | MEMBER_ID                            | MEMBER_HOST                       | MEMBER_PORT | MEMBER_STATE | MEMBER_ROLE | MEMBER_VERSION | MEMBER_COMMUNICATION_STACK |
++---------------------------+--------------------------------------+-----------------------------------+-------------+--------------+-------------+----------------+----------------------------+
+| group_replication_applier | 84eeaf81-e311-11ec-8713-ca8a36a676b8 | my-group-2.my-group-pods.demo.svc |        3306 | ONLINE       | SECONDARY   | 8.0.29         | XCom                       |
+| group_replication_applier | 8620667d-e311-11ec-b0bd-2e61c086151c | my-group-0.my-group-pods.demo.svc |        3306 | ONLINE       | PRIMARY     | 8.0.29         | XCom                       |
+| group_replication_applier | 8e790eba-e311-11ec-b867-2a6a31edcdec | my-group-1.my-group-pods.demo.svc |        3306 | ONLINE       | SECONDARY   | 8.0.29         | XCom                       |
+| group_replication_applier | be1d1775-e312-11ec-89bc-b2bf75b2ae52 | my-group-3.my-group-pods.demo.svc |        3306 | ONLINE       | SECONDARY   | 8.0.29         | XCom                       |
+| group_replication_applier | d00b4702-e312-11ec-bb43-0e8307eb9313 | my-group-4.my-group-pods.demo.svc |        3306 | ONLINE       | SECONDARY   | 8.0.29         | XCom                       |
++---------------------------+--------------------------------------+-----------------------------------+-------------+--------------+-------------+----------------+----------------------------+
+
 ```
 
 You can see above that our `MySQL` group replication now has a total of 5 members. It verifies that we have successfully scaled up.
@@ -325,16 +319,16 @@ If everything goes well, `KubeDB` enterprise operator will scale down the Statef
 Now, we will wait for `MySQLOpsRequest` to be successful.  Run the following command to watch `MySQlOpsRequest` cr,
 
 ```bash
-Every 3.0s: kubectl get myops -n demo my-scale-down              suaas-appscode: Sat Jul 25 15:49:42 2020
+$ watch kubectl get mysqlopsrequest -n demo my-scale-down
 
 NAME            TYPE                STATUS       AGE
-my-scale-down   HorizontalScaling   Successful   2m55s
+my-scale-down   HorizontalScaling   Successful   2m27s
 ```
 
 You can see from the above output that the `MySQLOpsRequest` has succeeded. If we describe the `MySQLOpsRequest`, we shall see that the `MySQL` group replication is scaled down.
 
 ```bash
-$ kubectl describe myops -n demo my-scale-down
+$kubectl describe myops -n demo my-scale-down
 Name:         my-scale-down
 Namespace:    demo
 Labels:       <none>
@@ -342,44 +336,43 @@ Annotations:  <none>
 API Version:  ops.kubedb.com/v1alpha1
 Kind:         MySQLOpsRequest
 Metadata:
-  Creation Timestamp:  2021-03-10T11:48:42Z
-  Generation:          2
-    Manager:         kubedb-enterprise
+  Creation Timestamp:  2022-06-03T08:03:42Z
+  Generation:          1
+  Managed Fields:
+    Manager:         kubedb-ops-manager
     Operation:       Update
-    Time:            2021-03-10T11:49:18Z
-  Resource Version:  1094487
-  Self Link:         /apis/ops.kubedb.com/v1alpha1/namespaces/demo/mysqlopsrequests/my-scale-down
-  UID:               7b9471ed-87b1-4c62-939b-dbb8a7641554
+    Time:            2022-06-03T08:03:42Z
+  Resource Version:  457238
+  UID:               4a2dc4d7-1117-4042-87f3-13313cc4c031
 Spec:
   Database Ref:
     Name:  my-group
   Horizontal Scaling:
-    Member:              4
-  Stateful Set Ordinal:  0
-  Type:                  HorizontalScaling
+    Member:  4
+  Type:      HorizontalScaling
 Status:
   Conditions:
-    Last Transition Time:  2021-03-10T11:48:42Z
+    Last Transition Time:  2022-06-03T08:03:42Z
     Message:               Controller has started to Progress the MySQLOpsRequest: demo/my-scale-down
-    Observed Generation:   2
+    Observed Generation:   1
     Reason:                OpsRequestProgressingStarted
     Status:                True
     Type:                  Progressing
-    Last Transition Time:  2021-03-10T11:48:43Z
+    Last Transition Time:  2022-06-03T08:03:42Z
     Message:               Horizontal scaling started in MySQL: demo/my-group for MySQLOpsRequest: my-scale-down
-    Observed Generation:   2
+    Observed Generation:   1
     Reason:                HorizontalScalingStarted
     Status:                True
     Type:                  Scaling
-    Last Transition Time:  2021-03-10T11:49:18Z
+    Last Transition Time:  2022-06-03T08:04:42Z
     Message:               Horizontal scaling down performed successfully in MySQL: demo/my-group for MySQLOpsRequest: my-scale-down
-    Observed Generation:   2
+    Observed Generation:   1
     Reason:                SuccessfullyPerformedHorizontalScaling
     Status:                True
     Type:                  ScalingDown
-    Last Transition Time:  2021-03-10T11:49:18Z
+    Last Transition Time:  2022-06-03T08:04:42Z
     Message:               Controller has successfully scaled the MySQL demo/my-scale-down
-    Observed Generation:   2
+    Observed Generation:   1
     Reason:                OpsRequestProcessedSuccessfully
     Status:                True
     Type:                  Successful
@@ -388,14 +381,14 @@ Status:
 Events:
   Type    Reason      Age   From                        Message
   ----    ------      ----  ----                        -------
-  Normal  Starting    97s   KubeDB Enterprise Operator  Start processing for MySQLOpsRequest: demo/my-scale-down
-  Normal  Starting    97s   KubeDB Enterprise Operator  Pausing MySQL databse: demo/my-group
-  Normal  Successful  97s   KubeDB Enterprise Operator  Successfully paused MySQL database: demo/my-group for MySQLOpsRequest: my-scale-down
-  Normal  Starting    96s   KubeDB Enterprise Operator  Horizontal scaling started in MySQL: demo/my-group for MySQLOpsRequest: my-scale-down
-  Normal  Successful  61s   KubeDB Enterprise Operator  Horizontal scaling down performed successfully in MySQL: demo/my-group for MySQLOpsRequest: my-scale-down
-  Normal  Starting    61s   KubeDB Enterprise Operator  Resuming MySQL database: demo/my-group
-  Normal  Successful  61s   KubeDB Enterprise Operator  Successfully resumed MySQL database: demo/my-group
-  Normal  Successful  61s   KubeDB Enterprise Operator  Controller has Successfully scaled the MySQL database: demo/my-group
+  Normal  Starting    3m    KubeDB Enterprise Operator  Start processing for MySQLOpsRequest: demo/my-scale-down
+  Normal  Starting    3m    KubeDB Enterprise Operator  Pausing MySQL databse: demo/my-group
+  Normal  Successful  3m    KubeDB Enterprise Operator  Successfully paused MySQL database: demo/my-group for MySQLOpsRequest: my-scale-down
+  Normal  Starting    3m    KubeDB Enterprise Operator  Horizontal scaling started in MySQL: demo/my-group for MySQLOpsRequest: my-scale-down
+  Normal  Successful  2m    KubeDB Enterprise Operator  Horizontal scaling down performed successfully in MySQL: demo/my-group for MySQLOpsRequest: my-scale-down
+  Normal  Starting    2m    KubeDB Enterprise Operator  Resuming MySQL database: demo/my-group
+  Normal  Successful  2m    KubeDB Enterprise Operator  Successfully resumed MySQL database: demo/my-group
+  Normal  Successful  2m    KubeDB Enterprise Operator  Controller has Successfully scaled the MySQL database: demo/my-gro
 ```
 
 Now, we are going to verify whether the number of members has decreased to meet up the desired state, Let's check,
@@ -405,18 +398,18 @@ $ kubectl get secrets -n demo my-group-auth -o jsonpath='{.data.\username}' | ba
 root
 
 $ kubectl get secrets -n demo my-group-auth -o jsonpath='{.data.\password}' | base64 -d
-Y28qkWFQ8QHVzq2h
+gcv5(gaHfVjHg)RI
 
-$ kubectl exec -it -n demo my-group-0 -c mysql -- mysql -u root --password=5pwciRRUWHhSJ6qQ --host=my-group-0.my-group-gvr.demo -e "select * from performance_schema.replication_group_members"
+$  kubectl exec -it -n demo my-group-0 -c mysql -- mysql -u root --password='gcv5(gaHfVjHg)RI' --host=my-group-0.my-group-pods.demo -e "select * from performance_schema.replication_group_members"
 mysql: [Warning] Using a password on the command line interface can be insecure.
-+---------------------------+--------------------------------------+------------------------------+-------------+--------------+-------------+----------------+
-| CHANNEL_NAME              | MEMBER_ID                            | MEMBER_HOST                  | MEMBER_PORT | MEMBER_STATE | MEMBER_ROLE | MEMBER_VERSION |
-+---------------------------+--------------------------------------+------------------------------+-------------+--------------+-------------+----------------+
-| group_replication_applier | 533602d0-ce5b-11ea-b866-5ad2598e5303 | my-group-1.my-group-gvr.demo |        3306 | ONLINE       | SECONDARY   | 8.0.23         |
-| group_replication_applier | 7d429240-ce5b-11ea-9fe2-0aaa5a845ec8 | my-group-2.my-group-gvr.demo |        3306 | ONLINE       | SECONDARY   | 8.0.23         |
-| group_replication_applier | c498302f-ce5b-11ea-96a3-72980d437abc | my-group-3.my-group-gvr.demo |        3306 | ONLINE       | SECONDARY   | 8.0.23         |
-| group_replication_applier | dfb1633a-ce5a-11ea-a9c8-6e4ef86119d0 | my-group-0.my-group-gvr.demo |        3306 | ONLINE       | PRIMARY     | 8.0.23         |
-+---------------------------+--------------------------------------+------------------------------+-------------+--------------+-------------+----------------+
++---------------------------+--------------------------------------+-----------------------------------+-------------+--------------+-------------+----------------+----------------------------+
+| CHANNEL_NAME              | MEMBER_ID                            | MEMBER_HOST                       | MEMBER_PORT | MEMBER_STATE | MEMBER_ROLE | MEMBER_VERSION | MEMBER_COMMUNICATION_STACK |
++---------------------------+--------------------------------------+-----------------------------------+-------------+--------------+-------------+----------------+----------------------------+
+| group_replication_applier | 84eeaf81-e311-11ec-8713-ca8a36a676b8 | my-group-2.my-group-pods.demo.svc |        3306 | ONLINE       | SECONDARY   | 8.0.29         | XCom                       |
+| group_replication_applier | 8620667d-e311-11ec-b0bd-2e61c086151c | my-group-0.my-group-pods.demo.svc |        3306 | ONLINE       | PRIMARY     | 8.0.29         | XCom                       |
+| group_replication_applier | 8e790eba-e311-11ec-b867-2a6a31edcdec | my-group-1.my-group-pods.demo.svc |        3306 | ONLINE       | SECONDARY   | 8.0.29         | XCom                       |
+| group_replication_applier | be1d1775-e312-11ec-89bc-b2bf75b2ae52 | my-group-3.my-group-pods.demo.svc |        3306 | ONLINE       | SECONDARY   | 8.0.29         | XCom                       |
++---------------------------+--------------------------------------+-----------------------------------+-------------+--------------+-------------+----------------+----------------------------+
 ```
 
 You can see above that our `MySQL` group replication now has a total of 4 members. It verifies that we have successfully scaled down.
