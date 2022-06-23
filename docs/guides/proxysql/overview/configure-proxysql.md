@@ -116,7 +116,7 @@ To apply this change we have to do additional tasks because of how ProxySQL’s 
 The change we made is in memory. To apply the change, we have to load the change from memory to runtime realm, then save them to disk to make them persist.
 
 ```sql
-ProxySQLAdmin> LOAD admin variables to disk;
+ProxySQLAdmin> SAVE admin variables to disk;
 ProxySQLAdmin> LOAD admin variables to runtime;
 ```
 
